@@ -49,6 +49,8 @@ export default function HomePage() {
   const [showSelectMessage, setShowSelectMessage] = useState<boolean>(false);
   const [showInstructionsForIndex, setShowInstructionsForIndex] = useState<number | null>(null);
   const [additionalInstructions, setAdditionalInstructions] = useState<string>('');
+  const [inputMode, setInputMode] = useState<'url' | 'prompt'>('url');
+  const [isGeneratingFromPrompt, setIsGeneratingFromPrompt] = useState<boolean>(false);
   const router = useRouter();
   
   // Simple URL validation
@@ -81,11 +83,64 @@ export default function HomePage() {
     name: appConfig.ai.modelDisplayNames[model] || model,
   }));
 
+  const handlePromptGeneration = async () => {
+    const inputValue = url.trim();
+    
+    if (!inputValue) {
+      toast.error("Please describe what you want to build");
+      return;
+    }
+    
+    setIsGeneratingFromPrompt(true);
+    
+    try {
+      // Generate project from prompt
+      const response = await fetch('/api/generate-from-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          prompt: inputValue, 
+          style: styles.find(s => s.id === selectedStyle)?.name,
+          model: selectedModel 
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Store the generated project data
+        sessionStorage.setItem('generatedProject', JSON.stringify(data.project));
+        sessionStorage.setItem('selectedStyle', selectedStyle);
+        sessionStorage.setItem('selectedModel', selectedModel);
+        sessionStorage.setItem('projectSource', 'prompt');
+        sessionStorage.setItem('originalPrompt', inputValue);
+        sessionStorage.setItem('autoStart', 'true');
+        
+        // Navigate to generation page
+        router.push('/generation');
+      } else {
+        const errorData = await response.json();
+        toast.error(`Failed to generate project: ${errorData.error}`);
+      }
+    } catch (error) {
+      console.error('Prompt generation error:', error);
+      toast.error('Failed to generate project from prompt');
+    } finally {
+      setIsGeneratingFromPrompt(false);
+    }
+  };
+
   const handleSubmit = async (selectedResult?: SearchResult) => {
     const inputValue = url.trim();
     
     if (!inputValue) {
-      toast.error("Please enter a URL or search term");
+      toast.error(inputMode === 'prompt' ? "Please describe what you want to build" : "Please enter a URL or search term");
+      return;
+    }
+    
+    // Handle prompt mode
+    if (inputMode === 'prompt') {
+      await handlePromptGeneration();
       return;
     }
     
@@ -276,9 +331,68 @@ export default function HomePage() {
                   }}
                 >
 
-                <div className="p-16 flex gap-12 items-center w-full relative bg-white rounded-20">
+                {/* Input Mode Toggle */}
+                <div className="px-16 pt-16 pb-8">
+                  <div className="flex items-center justify-center gap-2 bg-gray-100 rounded-lg p-1">
+                    <button
+                      onClick={() => {
+                        setInputMode('url');
+                        setUrl('');
+                        setSearchResults([]);
+                        setHasSearched(false);
+                        setShowSearchTiles(false);
+                      }}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                        inputMode === 'url'
+                          ? 'bg-white text-gray-900 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      <svg 
+                        width="16" 
+                        height="16" 
+                        viewBox="0 0 16 16" 
+                        fill="none" 
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="inline mr-2"
+                      >
+                        <path d="M8 2L8 14M2 8L14 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5"/>
+                      </svg>
+                      Clone Website
+                    </button>
+                    <button
+                      onClick={() => {
+                        setInputMode('prompt');
+                        setUrl('');
+                        setSearchResults([]);
+                        setHasSearched(false);
+                        setShowSearchTiles(false);
+                      }}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                        inputMode === 'prompt'
+                          ? 'bg-white text-gray-900 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      <svg 
+                        width="16" 
+                        height="16" 
+                        viewBox="0 0 16 16" 
+                        fill="none" 
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="inline mr-2"
+                      >
+                        <path d="M2 4L14 4M2 8L14 8M2 12L10 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                      </svg>
+                      Build from Prompt
+                    </button>
+                  </div>
+                </div>
+
+                <div className="px-16 pb-16 flex gap-12 items-center w-full relative">
                   {/* Show different UI when search results are displayed */}
-                  {hasSearched && searchResults.length > 0 && !isFadingOut ? (
+                  {hasSearched && searchResults.length > 0 && !isFadingOut && inputMode === 'url' ? (
                     <>
                       {/* Selection mode icon */}
                       <svg 
@@ -330,7 +444,19 @@ export default function HomePage() {
                     </>
                   ) : (
                     <>
-                      {isURL(url) ? (
+                      {inputMode === 'prompt' ? (
+                        // Prompt icon
+                        <svg 
+                          width="20" 
+                          height="20" 
+                          viewBox="0 0 20 20" 
+                          fill="none" 
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="opacity-40 flex-shrink-0"
+                        >
+                          <path d="M3 6L17 6M3 10L17 10M3 14L13 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        </svg>
+                      ) : isURL(url) ? (
                         // Scrape icon for URLs
                         <svg 
                           width="20" 
@@ -359,29 +485,31 @@ export default function HomePage() {
                       )}
                       <input
                         className="flex-1 bg-transparent text-body-input text-accent-black placeholder:text-black-alpha-48 focus:outline-none focus:ring-0 focus:border-transparent"
-                        placeholder="Enter URL or search term..."
+                        placeholder={inputMode === 'prompt' ? "Describe what you want to build..." : "Enter URL or search term..."}
                         type="text"
                         value={url}
-                        disabled={isSearching}
+                        disabled={isSearching || isGeneratingFromPrompt}
                         onChange={(e) => {
                           const value = e.target.value;
                           setUrl(value);
-                          setIsValidUrl(validateUrl(value));
-                          // Reset search state when input changes
-                          if (value.trim() === "") {
-                            setShowSearchTiles(false);
-                            setHasSearched(false);
-                            setSearchResults([]);
+                          if (inputMode === 'url') {
+                            setIsValidUrl(validateUrl(value));
+                            // Reset search state when input changes
+                            if (value.trim() === "") {
+                              setShowSearchTiles(false);
+                              setHasSearched(false);
+                              setSearchResults([]);
+                            }
                           }
                         }}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter" && !isSearching) {
+                          if (e.key === "Enter" && !isSearching && !isGeneratingFromPrompt) {
                             e.preventDefault();
                             handleSubmit();
                           }
                         }}
                         onFocus={() => {
-                          if (url.trim() && !isURL(url) && searchResults.length > 0) {
+                          if (inputMode === 'url' && url.trim() && !isURL(url) && searchResults.length > 0) {
                             setShowSearchTiles(true);
                           }
                         }}
@@ -389,16 +517,20 @@ export default function HomePage() {
                       <div
                         onClick={(e) => {
                           e.preventDefault();
-                          if (!isSearching) {
+                          if (!isSearching && !isGeneratingFromPrompt) {
                             handleSubmit();
                           }
                         }}
-                        className={isSearching ? 'pointer-events-none' : ''}
+                        className={isSearching || isGeneratingFromPrompt ? 'pointer-events-none' : ''}
                       >
                         <HeroInputSubmitButton 
                           dirty={url.length > 0} 
-                          buttonText={isURL(url) ? 'Scrape Site' : 'Search'} 
-                          disabled={isSearching}
+                          buttonText={
+                            inputMode === 'prompt' 
+                              ? (isGeneratingFromPrompt ? 'Generating...' : 'Generate App')
+                              : (isURL(url) ? 'Scrape Site' : 'Search')
+                          } 
+                          disabled={isSearching || isGeneratingFromPrompt}
                         />
                       </div>
                     </>
@@ -406,15 +538,15 @@ export default function HomePage() {
                 </div>
 
 
-                {/* Options Section - Only show when valid URL */}
+                {/* Options Section - Show when valid URL or in prompt mode */}
                 <div className={`overflow-hidden transition-all duration-500 ease-in-out ${
-                  isValidUrl ? 'max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
+                  (inputMode === 'prompt' && url.trim()) || isValidUrl ? 'max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
                 }`}>
                   <div className="p-[28px]">
                     <div className="border-t border-gray-100 bg-white">
                       {/* Style Selector */}
                       <div className={`mb-2 pt-4 transition-all duration-300 transform ${
-                        isValidUrl ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'
+                        (inputMode === 'prompt' && url.trim()) || isValidUrl ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'
                       }`} style={{ transitionDelay: '100ms' }}>
                         <div className="grid grid-cols-4 gap-1">
                           {styles.map((style, index) => (
