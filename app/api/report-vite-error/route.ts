@@ -9,7 +9,36 @@ if (!global.viteErrors) {
   global.viteErrors = [];
 }
 
+// DEPRECATED: Use /api/report-dev-error instead
+
 export async function POST(request: NextRequest) {
+  console.log('[report-vite-error] DEPRECATED: Redirecting to /api/report-dev-error');
+  
+  try {
+    const body = await request.json();
+    
+    // Make internal request to the new endpoint
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/report-dev-error`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    
+    const data = await response.json();
+    
+    // Transform response to match old format for backward compatibility
+    return NextResponse.json({
+      success: data.success,
+      message: data.message || 'Error reported successfully',
+      framework: data.framework,
+      deprecated: true,
+      newEndpoint: '/api/report-dev-error'
+    });
+  } catch (error) {
+    console.error('[report-vite-error] Fallback to legacy error reporting');
+  }
+  
+  // Fallback to original logic if new endpoint fails
   try {
     const { error, file, type = 'runtime-error' } = await request.json();
     

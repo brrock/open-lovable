@@ -9,7 +9,32 @@ declare global {
 
 const RESTART_COOLDOWN_MS = 5000; // 5 second cooldown between restarts
 
+// DEPRECATED: Use /api/restart-dev-server or /api/framework-operations instead
 export async function POST() {
+  console.log('[restart-vite] DEPRECATED: Use /api/restart-dev-server or /api/framework-operations instead');
+  
+  try {
+    // Make internal request to the new endpoint
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/restart-dev-server`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const data = await response.json();
+    
+    // Transform response to match old format for backward compatibility
+    return NextResponse.json({
+      success: data.success,
+      message: data.message || 'Dev server restarted successfully',
+      framework: data.framework,
+      deprecated: true,
+      newEndpoint: '/api/restart-dev-server'
+    });
+  } catch (error) {
+    console.error('[restart-vite] Fallback to legacy restart logic');
+  }
+  
+  // Fallback to original logic if new endpoint fails
   try {
     // Check both v1 and v2 global references
     const provider = global.activeSandbox || global.activeSandboxProvider;

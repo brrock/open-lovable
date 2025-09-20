@@ -4,7 +4,30 @@ declare global {
   var activeSandbox: any;
 }
 
+// DEPRECATED: Use /api/monitor-dev-logs instead
 export async function GET() {
+  console.log('[monitor-vite-logs] DEPRECATED: Redirecting to /api/monitor-dev-logs');
+  
+  try {
+    // Make internal request to the new endpoint
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/monitor-dev-logs`);
+    const data = await response.json();
+    
+    // Transform response to match old format for backward compatibility
+    return NextResponse.json({
+      success: data.success,
+      hasErrors: data.hasErrors,
+      errors: data.errors || [],
+      warnings: data.warnings || [],
+      framework: data.framework,
+      deprecated: true,
+      newEndpoint: '/api/monitor-dev-logs'
+    });
+  } catch (error) {
+    console.error('[monitor-vite-logs] Fallback to legacy monitoring logic');
+  }
+  
+  // Fallback to original logic if new endpoint fails
   try {
     if (!global.activeSandbox) {
       return NextResponse.json({ 
@@ -13,7 +36,7 @@ export async function GET() {
       }, { status: 400 });
     }
     
-    console.log('[monitor-vite-logs] Checking Vite process logs...');
+    console.log('[monitor-vite-logs] Checking Vite process logs (legacy fallback)...');
     
     const errors: any[] = [];
     

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { appConfig } from '@/config/app.config';
 import { toast } from "sonner";
+import { getFrameworkChoices } from '@/lib/framework-templates';
 
 // Import shared components
 import { Connector } from "@/components/shared/layout/curvy-rect";
@@ -51,6 +52,7 @@ export default function HomePage() {
   const [additionalInstructions, setAdditionalInstructions] = useState<string>('');
   const [inputMode, setInputMode] = useState<'url' | 'prompt'>('url');
   const [isGeneratingFromPrompt, setIsGeneratingFromPrompt] = useState<boolean>(false);
+  const [selectedFramework, setSelectedFramework] = useState<string>('auto');
   const router = useRouter();
   
   // Simple URL validation
@@ -83,6 +85,8 @@ export default function HomePage() {
     name: appConfig.ai.modelDisplayNames[model] || model,
   }));
 
+  const frameworks = getFrameworkChoices();
+
   const handlePromptGeneration = async () => {
     const inputValue = url.trim();
     
@@ -101,7 +105,8 @@ export default function HomePage() {
         body: JSON.stringify({ 
           prompt: inputValue, 
           style: styles.find(s => s.id === selectedStyle)?.name,
-          model: selectedModel 
+          model: selectedModel,
+          framework: selectedFramework
         }),
       });
 
@@ -572,15 +577,49 @@ export default function HomePage() {
                         </div>
                       </div>
 
+                      {/* Framework Selector - Only show in prompt mode */}
+                      {inputMode === 'prompt' && (
+                        <div className={`mb-3 transition-all duration-300 transform ${
+                          (inputMode === 'prompt' && url.trim()) ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'
+                        }`} style={{ transitionDelay: '250ms' }}>
+                          <div className="grid grid-cols-3 gap-1">
+                            {frameworks.map((framework, index) => (
+                              <button
+                                key={framework.id}
+                                onClick={() => setSelectedFramework(framework.id)}
+                                className={`
+                                  py-2.5 px-2 rounded text-[10px] font-medium border transition-all text-center flex items-center justify-center gap-1
+                                  ${selectedFramework === framework.id 
+                                    ? 'border-blue-500 bg-blue-50 text-blue-900' 
+                                    : 'border-gray-200 hover:border-gray-300 bg-white text-gray-700'
+                                  }
+                                `}
+                                style={{
+                                  transitionDelay: `${300 + index * 30}ms`,
+                                  transition: 'all 0.3s ease-in-out'
+                                }}
+                              >
+                                <span>{framework.icon}</span>
+                                <span>{framework.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                          <p className="text-[9px] text-gray-500 mt-1 text-center">
+                            Choose your preferred framework or let AI decide
+                          </p>
+                        </div>
+                      )}
+
                       {/* Model Selector Dropdown and Additional Instructions */}
                       <div className={`flex gap-3 mt-2 pb-4 transition-all duration-300 transform ${
-                        isValidUrl ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'
+                        (inputMode === 'prompt' && url.trim()) || isValidUrl ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'
                       }`} style={{ transitionDelay: '400ms' }}>
                         {/* Model Dropdown */}
                         <select
                           value={selectedModel}
                           onChange={(e) => setSelectedModel(e.target.value)}
                           className="px-3 py-2.5 text-[10px] font-medium text-gray-700 bg-white rounded border border-gray-200 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                          title="Select AI Model"
                         >
                           {models.map((model) => (
                             <option key={model.id} value={model.id}>
